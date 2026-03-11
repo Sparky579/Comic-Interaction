@@ -1,140 +1,157 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import './DrawingCanvas.css';
 
-const presetColors = ['#00d4ff', '#ff007f', '#00ffaa', '#ffff00', '#ffffff', '#000000'];
-
-const DrawingCanvas = ({ pageId }) => {
-  const canvasRef = useRef(null);
+const DrawingCanvas = ({
+  pageId,
+  imageUrl,
+  alt,
+  isDrawingMode,
+  isEraser,
+  color,
+  brushSize,
+  drawingTool = 'pen',
+  canvasRef: externalCanvasRef,
+}) => {
+  const internalCanvasRef = useRef(null);
+  const canvasRef = externalCanvasRef || internalCanvasRef;
   const contextRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
-  const [color, setColor] = useState('#00d4ff');
-  const [brushSize, setBrushSize] = useState(5);
-  const [isEraser, setIsEraser] = useState(false);
-  const [history, setHistory] = useState([]);
+  const [startPos, setStartPos] = useState({ x: 0, y: 0 });
+  const [snapshot, setSnapshot] = useState(null);
 
-  // Setup canvas on mount and resize
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // Match parent size
-    const parent = canvas.parentElement;
-    canvas.width = parent.clientWidth;
-    canvas.height = parent.clientHeight;
-    
-    // Setup Context
-    const context = canvas.getContext('2d');
-    context.lineCap = 'round';
-    context.lineJoin = 'round';
-    contextRef.current = context;
+    const resizeCanvas = () => {
+      const parent = canvas.parentElement;
+      if (!parent) return;
+      // Save current drawing
+      const imageData = canvas.width > 0 && canvas.height > 0
+        ? canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height)
+        : null;
 
-    // Load saved drawings for this page if any (mocking clear state on page flip)
-    // In a real app we'd load from state/context via pageId
-  }, [pageId]);
+      canvas.width = parent.clientWidth;
+      canvas.height = parent.clientHeight;
+      const context = canvas.getContext('2d');
+      context.lineCap = 'round';
+      context.lineJoin = 'round';
+      contextRef.current = context;
 
-  // Update context when tool changes
+      // Restore drawing if possible
+      if (imageData) {
+        context.putImageData(imageData, 0, 0);
+      }
+    };
+
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+    return () => window.removeEventListener('resize', resizeCanvas);
+  }, [pageId, canvasRef]);
+
   useEffect(() => {
     if (!contextRef.current) return;
+
     if (isEraser) {
-        contextRef.current.globalCompositeOperation = 'destination-out';
-        contextRef.current.lineWidth = brushSize * 2;
+      contextRef.current.globalCompositeOperation = 'destination-out';
+      contextRef.current.lineWidth = brushSize * 2;
     } else {
-        contextRef.current.globalCompositeOperation = 'source-over';
-        contextRef.current.strokeStyle = color;
-        contextRef.current.lineWidth = brushSize;
+      contextRef.current.globalCompositeOperation = 'source-over';
+      contextRef.current.strokeStyle = color;
+      contextRef.current.fillStyle = color;
+      contextRef.current.lineWidth = brushSize;
     }
   }, [color, brushSize, isEraser]);
 
   const startDrawing = ({ nativeEvent }) => {
+    if (!isDrawingMode || !contextRef.current) return;
+
     const { offsetX, offsetY } = nativeEvent;
-    contextRef.current.beginPath();
-    contextRef.current.moveTo(offsetX, offsetY);
+    const ctx = contextRef.current;
+    const canvas = canvasRef.current;
+
+    if (drawingTool === 'text') {
+      const text = prompt('Enter text:');
+      if (text) {
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.fillStyle = color;
+        ctx.font = `${Math.max(brushSize * 3, 14)}px 'IBM Plex Sans', sans-serif`;
+        ctx.fillText(text, offsetX, offsetY);
+      }
+      return;
+    }
+
+    if (drawingTool === 'rect' || drawingTool === 'circle') {
+      setStartPos({ x: offsetX, y: offsetY });
+      // Save canvas state for preview
+      setSnapshot(ctx.getImageData(0, 0, canvas.width, canvas.height));
+    }
+
+    if (drawingTool === 'pen' || drawingTool === 'eraser') {
+      ctx.beginPath();
+      ctx.moveTo(offsetX, offsetY);
+    }
+
     setIsDrawing(true);
   };
 
   const draw = ({ nativeEvent }) => {
-    if (!isDrawing) return;
+    if (!isDrawing || !contextRef.current) return;
     const { offsetX, offsetY } = nativeEvent;
-    contextRef.current.lineTo(offsetX, offsetY);
-    contextRef.current.stroke();
-  };
-
-  const stopDrawing = () => {
-    contextRef.current.closePath();
-    setIsDrawing(false);
-    
-    // Save to history for Undo (naive implementation for mock)
+    const ctx = contextRef.current;
     const canvas = canvasRef.current;
-    if (canvas) {
-        setHistory(prev => [...prev.slice(-9), canvas.toDataURL()]);
+
+    if (drawingTool === 'pen' || drawingTool === 'eraser') {
+      ctx.lineTo(offsetX, offsetY);
+      ctx.stroke();
+    } else if (drawingTool === 'rect' && snapshot) {
+      ctx.putImageData(snapshot, 0, 0);
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.strokeStyle = color;
+      ctx.lineWidth = brushSize;
+      const w = offsetX - startPos.x;
+      const h = offsetY - startPos.y;
+      ctx.strokeRect(startPos.x, startPos.y, w, h);
+    } else if (drawingTool === 'circle' && snapshot) {
+      ctx.putImageData(snapshot, 0, 0);
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.strokeStyle = color;
+      ctx.lineWidth = brushSize;
+      const rx = Math.abs(offsetX - startPos.x) / 2;
+      const ry = Math.abs(offsetY - startPos.y) / 2;
+      const cx = (startPos.x + offsetX) / 2;
+      const cy = (startPos.y + offsetY) / 2;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, rx, ry, 0, 0, 2 * Math.PI);
+      ctx.stroke();
+      ctx.closePath();
     }
   };
 
-  const currentToolStyle = isEraser ? 'url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'24\' height=\'24\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'white\' stroke-width=\'2\'><path d=\'M20 20H7L3 16C2.5 15.5 2.5 14.5 3 14L13 4C13.5 3.5 14.5 3.5 15 4L20 9C20.5 9.5 20.5 10.5 20 11L11 20H20V20Z\'/></svg>") 0 24, auto' : 'crosshair';
+  const stopDrawing = () => {
+    if (!contextRef.current) return;
+
+    if (drawingTool === 'pen' || drawingTool === 'eraser') {
+      contextRef.current.closePath();
+    }
+    setIsDrawing(false);
+    setSnapshot(null);
+  };
 
   return (
-    <>
-      {/* The Transparent Drawing Canvas */}
-      <canvas
-        className="drawing-canvas"
-        ref={canvasRef}
-        onMouseDown={startDrawing}
-        onMouseMove={draw}
-        onMouseUp={stopDrawing}
-        onMouseLeave={stopDrawing}
-        style={{ cursor: currentToolStyle }}
-      />
-      
-      {/* Floating Canvas Tools Toolbar */}
-      <div className="canvas-tools glass-panel">
-        <button 
-          className={`ct-btn ${!isEraser ? 'active' : ''}`} 
-          onClick={() => setIsEraser(false)}
-          title="Pen"
-        >
-          ✏️
-        </button>
-        <button 
-          className={`ct-btn ${isEraser ? 'active' : ''}`} 
-          onClick={() => setIsEraser(true)}
-          title="Eraser"
-        >
-          🧹
-        </button>
-        
-        <div className="ct-divider"></div>
-        
-        {/* Colors */}
-        <div className="ct-colors">
-          {presetColors.map(c => (
-            <div 
-              key={c}
-              className={`ct-color ${color === c && !isEraser ? 'active' : ''}`}
-              style={{ backgroundColor: c }}
-              onClick={() => { setColor(c); setIsEraser(false); }}
-            />
-          ))}
-        </div>
-        
-        <div className="ct-divider"></div>
-
-        {/* Action Buttons */}
-        <button 
-          className="ct-btn" 
-          onClick={() => {
-            const ctx = contextRef.current;
-            const canvas = canvasRef.current;
-            if(ctx && canvas) {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                setHistory([]);
-            }
-          }}
-          title="Clear All"
-        >
-          🗑️
-        </button>
+    <div className="drawing-workbench">
+      <div className="comic-canvas-wrapper">
+        <img src={imageUrl} alt={alt} className="main-comic-img" />
+        <canvas
+          className={`drawing-canvas ${isDrawingMode ? 'enabled' : 'disabled'}`}
+          ref={canvasRef}
+          onMouseDown={startDrawing}
+          onMouseMove={draw}
+          onMouseUp={stopDrawing}
+          onMouseLeave={stopDrawing}
+        />
       </div>
-    </>
+    </div>
   );
 };
 

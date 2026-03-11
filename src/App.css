@@ -3,80 +3,108 @@
   flex-direction: column;
   height: 100vh;
   padding: 16px;
-  gap: 16px;
+  gap: 0;
 }
 
 .app-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0 16px;
-  height: 60px;
+  gap: 18px;
+  padding: 6px 8px;
 }
 
 .logo-area {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
 }
 
 .logo-area h1 {
-  font-size: 1.2rem;
-  font-weight: 600;
-  letter-spacing: 0.5px;
+  font-family: 'Source Serif 4', serif;
+  font-size: 2rem;
+  line-height: 1.05;
+  font-weight: 700;
+  letter-spacing: -0.03em;
 }
 
 .logo-icon {
-  background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
-  width: 32px; height: 32px;
-  border-radius: 8px;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #ffffff;
+  background: linear-gradient(145deg, var(--accent-blue), #4d7ec7);
+  box-shadow: 0 14px 28px rgba(32, 87, 166, 0.22);
+}
+
+.eyebrow {
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--accent-blue);
+  margin-bottom: 6px;
+  font-weight: 700;
 }
 
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
 }
 
-.icon-btn {
-  width: 36px; height: 36px;
-  border-radius: 50%;
-  background: var(--bg-secondary);
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer;
-  transition: background 0.2s ease;
-}
-
-.icon-btn:hover {
-  background: rgba(255,255,255,0.1);
+.status-pill {
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-size: 0.92rem;
+  font-weight: 600;
 }
 
 .main-layout {
   display: grid;
-  grid-template-columns: 280px 1fr 320px;
-  gap: 16px;
+  grid-template-columns: 260px minmax(0, 1fr) 380px;
+  gap: 14px;
   flex: 1;
-  min-height: 0; /* Important for scrollable children */
+  min-height: 0;
 }
 
-/* Base Panel Styles */
 .panel {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  min-height: 0;
   overflow: hidden;
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 1360px) {
+  .main-layout {
+    grid-template-columns: 240px minmax(0, 1fr) 340px;
+  }
+}
+
+@media (max-width: 1120px) {
+  .app-container {
+    height: auto;
+    min-height: 100vh;
+    overflow: auto;
+  }
+
+  .app-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
   .main-layout {
     grid-template-columns: 1fr;
-    overflow-y: auto;
   }
+
   .panel {
-    min-height: 500px;
+    min-height: 540px;
   }
 }
